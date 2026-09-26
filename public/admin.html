@@ -1,0 +1,160 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Админка · ПИ-17</title>
+<link rel="stylesheet" href="/style.css">
+<style>
+  .adm-head { display:flex; align-items:center; gap:12px; padding:16px 20px; margin-top:16px; }
+  .stat { font-size:13px; color:var(--text2); background:rgba(255,255,255,.07); border-radius:10px; padding:4px 10px; }
+  .prop-card { padding:14px 16px; margin-bottom:10px; }
+  .prop-head { display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-bottom:6px; }
+  .tag { font-size:11px; font-weight:700; text-transform:uppercase; padding:2px 9px; border-radius:20px; letter-spacing:.4px; }
+  .t-add { background:rgba(48,209,88,.15); color:var(--green); }
+  .t-edit { background:rgba(10,132,255,.16); color:#6ab7ff; }
+  .t-cancel { background:rgba(255,69,58,.15); color:var(--red); }
+  .t-note { background:rgba(255,214,10,.13); color:var(--yellow); }
+  .t-pending { background:rgba(255,159,10,.15); color:var(--orange); }
+  .t-approved { background:rgba(48,209,88,.15); color:var(--green); }
+  .t-rejected { background:rgba(255,255,255,.1); color:var(--text3); }
+  pre.diff { white-space:pre-wrap; word-break:break-word; font-family:ui-monospace,Menlo,monospace; font-size:12.5px;
+    background:rgba(0,0,0,.35); border:1px solid var(--glass-border); border-radius:12px; padding:10px 12px; color:var(--text2); }
+  h2.sec { font-size:20px; margin:26px 0 10px; letter-spacing:-.4px; }
+</style>
+</head>
+<body>
+<div class="orb a"></div><div class="orb b"></div>
+<div class="wrap">
+  <header class="top glass adm-head">
+    <div class="logo"><div class="logo-badge">⚙️</div><span>Админка · ПИ-17</span></div>
+    <span class="stat" id="who"></span>
+    <div class="spacer"></div>
+    <a class="btn small ghost" href="/">← На сайт</a>
+    <button class="btn small ghost" id="refresh">Обновить</button>
+  </header>
+  <div id="content"><p style="margin-top:30px;color:var(--text3)">Загрузка…</p></div>
+</div>
+<div id="toast" class="glass"></div>
+<script>
+/* страница админа использует те же api/esc/toast из app.js, но app.js рендерит основной сайт —
+   поэтому здесь своя компактная логика поверх fetch */
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+async function api(url, opts = {}) {
+  const r = await fetch(url, { headers: { 'Content-Type': 'application/json' }, credentials: 'same-origin', ...opts });
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(j.error || 'Ошибка');
+  return j;
+}
+function toast(m, ok = true) {
+  const t = $('#toast'); t.textContent = m; t.className = `glass show ${ok ? 'ok' : 'err'}`;
+  setTimeout(() => t.classList.remove('show'), 2600);
+}
+const TYPE_RU = { add: 'новая пара', edit: 'изменение пары', cancel: 'отмена пары', note: 'пометка на паре' };
+const DAYRU = { mon:'пн', tue:'вт', wed:'ср', thu:'чт', fri:'пт', sat:'сб' };
+
+function entryForm(val = {}, idpfx) {
+  const v = k => val[k] ?? '';
+  return `
+  <div class="form-grid">
+    <div><label>Неделя</label><select id="${idpfx}-week">
+      <option value="upper" ${v('week')==='upper'?'selected':''}>Верхняя</option>
+      <option value="lower" ${v('week')==='lower'?'selected':''}>Нижняя</option></select></div>
+    <div><label>День</label><select id="${idpfx}-day">${['mon','tue','wed','thu','fri','sat']
+      .map(d=>`<option value="${d}" ${v('day')===d?'selected':''}>${DAYRU[d]}</option>`).join('')}</select></div>
+    <div><label>Пара</label><select id="${idpfx}-ord">${[1,2,3,4,5,6].map(o=>`<option ${v('ord')==o?'selected':''}>${o}</option>`).join('')}</select></div>
+    <div><label>Формат</label><select id="${idpfx}-kind"><option value="">—</option>${['лекция','семинар','практ','лаб']
+      .map(k=>`<option ${v('kind')===k?'selected':''}>${k}</option>`).join('')}</select></div>
+  </div>
+  <label>Дисциплина *</label><input id="${idpfx}-disc" value="${esc(v('discipline'))}">
+  <label>Преподаватель</label><input id="${idpfx}-teach" value="${esc(v('teacher'))}">
+  <label>Аудитория</label><input id="${idpfx}-room" value="${esc(v('room'))}">
+  <label>Пометка</label><input id="${idpfx}-note" value="${esc(v('note'))}">`;
+}
+function readForm(idpfx) {
+  return { week: $(`#${idpfx}-week`).value, day: $(`#${idpfx}-day`).value, ord: +$(`#${idpfx}-ord`).value,
+    kind: $(`#${idpfx}-kind`).value, discipline: $(`#${idpfx}-disc`).value.trim(),
+    teacher: $(`#${idpfx}-teach`).value.trim(), room: $(`#${idpfx}-room`).value.trim(),
+    note: $(`#${idpfx}-note`).value.trim() };
+}
+
+async function load() {
+  let me;
+  try { me = (await api('/api/me')).user; } catch (e) { me = null; }
+  if (!me) { $('#content').innerHTML = `<div class="card glass" style="padding:26px;margin-top:24px;text-align:center">
+    <h2>Нужен вход администратора</h2><p style="color:var(--text3);margin:8px 0 16px">Войдите под аккаунтом admin (пароль по умолчанию — admin123, смените его в БД).</p>
+    <a class="btn primary" href="/">Войти на основном сайте</a></div>`; $('#who').textContent = 'не авторизован'; return; }
+  if (me.role !== 'admin') { $('#content').innerHTML = '<div class="card glass" style="padding:26px;margin-top:24px">У вашего аккаунта нет прав админа.</div>'; $('#who').textContent = me.username; return; }
+  $('#who').textContent = '👤 ' + me.username;
+
+  const [{ items: props }, { announcements: anns }, sched] = await Promise.all([
+    api('/api/proposals'), api('/api/pending'), api('/api/schedule')]);
+  const pending = props.filter(p => p.status === 'pending');
+  const doneP = props.filter(p => p.status !== 'pending');
+
+  const propCard = p => {
+    let d; try { d = JSON.parse(p.data); } catch (e) { d = {}; }
+    const target = sched.entries.find(e => e.id === p.target_id);
+    return `<div class="prop-card glass card">
+      <div class="prop-head">
+        <span class="tag t-${p.type}">${TYPE_RU[p.type]}</span>
+        <span class="author">от <b>${esc(p.author)}</b> · ${new Date(p.created_at).toLocaleString('ru-RU')}</span>
+        <span class="spacer"></span>
+        ${p.status === 'pending' ? `<span class="tag t-pending">ожидает</span>` :
+          `<span class="tag t-${p.status}">${p.status === 'approved' ? 'одобрено' : 'отклонено'} (${esc(p.reviewed_by)})</span>`}
+      </div>
+      ${target ? `<pre class="diff">было: [${target.week === 'upper' ? 'верхняя' : 'нижняя'} ${DAYRU[target.day]} ${target.ord}] ${esc(target.discipline)} ${esc(target.kind)} ${esc(target.teacher)} ауд.${esc(target.room)}${target.note ? ' · 📌' + esc(target.note) : ''}</pre>` : ''}
+      ${(p.type === 'add' || p.type === 'edit') ? `<pre class="diff">станет: [${d.week === 'upper' ? 'верхняя' : 'нижняя'} ${DAYRU[d.day] || ''} ${d.ord || ''}] ${esc(d.discipline || '')} ${esc(d.kind || '')} ${esc(d.teacher || '')} ауд.${esc(d.room || '')}${d.note ? ' · 📌' + esc(d.note) : ''}</pre>` : ''}
+      ${p.type === 'note' ? `<pre class="diff">пометка: 📌 ${esc(d.note || '')}</pre>` : ''}
+      ${p.status === 'pending' ? `<div style="display:flex;gap:8px;margin-top:10px">
+        <button class="btn small primary" onclick="review(${p.id},'approve')">✓ Утвердить</button>
+        <button class="btn small danger" onclick="review(${p.id},'reject')">✕ Отклонить</button></div>` : ''}
+    </div>`;
+  };
+  const annCard = a => `<div class="prop-card glass card">
+      <div class="prop-head"><span class="tag t-note">объявление</span>
+      <span class="author">от <b>${esc(a.author)}</b> · ${new Date(a.created_at).toLocaleString('ru-RU')}</span></div>
+      <h3 style="font-size:16px;margin:4px 0">${esc(a.title)}</h3>
+      <p style="color:var(--text2);font-size:14px;white-space:pre-wrap">${esc(a.body)}</p>
+      <div style="display:flex;gap:8px;margin-top:10px">
+        <button class="btn small primary" onclick="publish(${a.id})">📣 Опубликовать</button>
+        <button class="btn small danger" onclick="delAnn(${a.id})">🗑 Отклонить</button></div>
+    </div>`;
+
+  $('#content').innerHTML = `
+    <h2 class="sec">➕ Быстрое действие</h2>
+    <div class="card glass">
+      <details><summary style="cursor:pointer;font-weight:600">Добавить пару напрямую (без утверждения)</summary>
+        <div id="direct-form">${entryForm({}, 'df')}
+        <div style="margin-top:12px"><button class="btn primary" id="df-go">Добавить в расписание</button></div></div>
+      </details>
+    </div>
+
+    <h2 class="sec">⏳ На утверждении — правки расписания (${pending.length})</h2>
+    ${pending.map(propCard).join('') || '<div class="card glass" style="color:var(--text3)">Очередь пуста 🎉</div>'}
+
+    <h2 class="sec">📣 Объявления на публикации (${anns.length})</h2>
+    ${anns.map(annCard).join('') || '<div class="card glass" style="color:var(--text3)">Нет черновиков.</div>'}
+
+    <h2 class="sec">✅ История решений</h2>
+    ${doneP.slice(0, 30).map(propCard).join('') || '<div class="card glass" style="color:var(--text3)">Пусто.</div>'}
+  `;
+  $('#df-go').onclick = async () => {
+    const d = readForm('df'); if (!d.discipline) return toast('Дисциплина обязательна', false);
+    await api('/api/proposals', { method: 'POST', body: JSON.stringify({ type: 'add', data: d }) });
+    toast('Создано предложение — подтвердите его ниже'); load();
+  };
+}
+window.review = async (id, decision) => {
+  try { await api(`/api/proposals/${id}/review`, { method: 'POST', body: JSON.stringify({ decision }) });
+    toast(decision === 'approve' ? 'Утверждено ✅' : 'Отклонено'); load(); }
+  catch (e) { toast(e.message, false); }
+};
+window.publish = async id => { await api(`/api/announcements/${id}/publish`, { method: 'POST' }); toast('Опубликовано 📣'); load(); };
+window.delAnn = async id => { await api(`/api/announcements/${id}`, { method: 'DELETE' }); toast('Удалено'); load(); };
+$('#refresh').onclick = load;
+load();
+</script>
+</body>
+</html>

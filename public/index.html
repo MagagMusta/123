@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ПИ-17 · Расписание и учебный день</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📚</text></svg>">
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+<div class="orb a"></div><div class="orb b"></div><div class="orb c"></div>
+
+<div class="wrap">
+  <header class="top glass">
+    <div class="logo"><div class="logo-badge">17</div><span>ПИ-17 · ЮФУ</span></div>
+    <nav class="tabs glass" id="tabs">
+      <button class="tab-btn active" data-v="schedule">Расписание</button>
+      <button class="tab-btn" data-v="tasks">ДЗ · Контрольные</button>
+      <button class="tab-btn" data-v="ann">Объявления</button>
+    </nav>
+    <div class="spacer"></div>
+    <div id="authbox"></div>
+  </header>
+
+  <!-- ================= РАСПИСАНИЕ ================= -->
+  <section class="view active" id="v-schedule">
+    <div class="week-bar glass">
+      <button class="arrow" id="prev-w" title="Предыдущая неделя">‹</button>
+      <div class="week-title">
+        <div style="font-size:20px;font-weight:750;letter-spacing:-.4px">
+          <span class="fraction"><span class="fr-num" id="fr-top">Верхняя</span><span class="fr-den" id="fr-bot">Нижняя</span></span>
+        </div>
+        <div class="week-dates" id="week-dates"></div>
+      </div>
+      <button class="arrow" id="next-w" title="Следующая неделя">›</button>
+    </div>
+    <div style="display:flex;justify-content:center;margin-bottom:6px">
+      <button class="btn small ghost" id="today-btn">Сегодня</button>
+    </div>
+    <div class="today-line" id="today-line"></div>
+    <div id="days"></div>
+
+    <div style="text-align:center;margin-top:26px">
+      <button class="btn primary" id="edit-schedule-btn">✏️ Внести правки в расписание</button>
+      <div class="author" style="margin-top:8px">Правки видят все, но в расписание их добавляет только админ после проверки</div>
+    </div>
+  </section>
+
+  <!-- ================= ЗАДАНИЯ ================= -->
+  <section class="view" id="v-tasks">
+    <h1 style="font-size:26px;letter-spacing:-.5px;margin:26px 0 4px">Домашние задания и контрольные</h1>
+    <p class="author" style="margin-bottom:16px">Может скинуть любой вошедший участник — подпись автора обязательна</p>
+    <div style="display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap">
+      <button class="btn small" id="add-hw">+ Задать ДЗ</button>
+      <button class="btn small" id="add-exam">+ Контрольная</button>
+      <button class="btn small ghost" id="toggle-done-view">Скрыть выполненные</button>
+    </div>
+    <div id="exam-block"></div>
+    <div id="hw-block"></div>
+  </section>
+
+  <!-- ================= ОБЪЯВЛЕНИЯ ================= -->
+  <section class="view" id="v-ann">
+    <h1 style="font-size:26px;letter-spacing:-.5px;margin:26px 0 4px">Объявления</h1>
+    <p class="author" style="margin-bottom:16px">Предложить объявление может каждый, публикует его админ (с подписью автора)</p>
+    <div style="margin-bottom:16px"><button class="btn small" id="add-ann">+ Предложить объявление</button></div>
+    <div id="ann-list"></div>
+  </section>
+
+  <footer class="bot">
+    Данные расписания — группа ПИ-17, ЮФУ · сделано на основе <a href="https://sfedu-pi17.github.io" target="_blank">sfedu-pi17.github.io</a>
+  </footer>
+</div>
+
+<!-- модалка -->
+<div class="modal-bg" id="modal-bg"><div class="modal glass" id="modal"></div></div>
+<div id="toast" class="glass"></div>
+
+<script src="/app.js"></script>
+</body>
+</html>

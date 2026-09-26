@@ -1,0 +1,15 @@
+{
+  "name": "pi17-schedule",
+  "version": "1.0.0",
+  "description": "Расписание, заметки и учебный день группы ПИ-17 (ЮФУ) — клон sfedu-pi17.github.io с доработками",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "better-sqlite3": "^12.11.1"
+  }
+}

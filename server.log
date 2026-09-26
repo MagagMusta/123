@@ -1,0 +1,3 @@
+[seed] создан админ: admin / admin123
+[seed] расписание импортировано из schedule.csv
+ПИ-17 schedule: http://localhost:3000  (админ: /admin)
